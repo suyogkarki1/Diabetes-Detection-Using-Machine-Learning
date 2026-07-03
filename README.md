@@ -101,6 +101,88 @@ Confusion Matrix:
 
 The model made only one error on the test set.
 
+## Model 2 — Without Blood Glucose Reading
+
+### Why a second model?
+
+Blood Glucose Reading is the strongest signal in the dataset, and by clinical definition
+it's the value doctors actually use to diagnose diabetes. Using it in a model isn't wrong,
+but it raises a fair question: is the model detecting diabetes, or just reading off the
+diagnostic value it was trained on?
+
+Model 2 answers a different, more practical question: **can diabetes risk be estimated
+from vitals and symptoms alone, without a lab glucose test?** This mirrors a realistic
+screening scenario — a nurse checking blood pressure, heart rate, temperature, and SPO2
+at a routine visit, before any lab work is ordered.
+
+A feature importance check on Model 1 also confirmed Blood Glucose Reading was **not**
+dominating the model's decisions (it ranked outside the top 5 features), which meant it
+was a reasonable, well-motivated experiment rather than an attempt to fix a leakage problem.
+
+### What changed from Model 1
+
+- **Removed:** `Blood Glucose Reading` entirely, from both features and cleaning steps
+  that reference it directly.
+- **Everything else kept identical:** same cleaning rules, same train/test split logic,
+  same preprocessing pipeline structure, same CV/tuning/evaluation workflow.
+- **Feature engineering added** for both models, using fixed clinical thresholds/formulas
+  (safe to compute before the split, since none of them are derived from data statistics):
+
+```text
+Age_Group        — bucketed by fixed age ranges (Child/Teen, Adult, Middle Age, Senior)
+HR_Category      — bucketed by standard clinical heart-rate bands
+Pulse_Pressure   — Systolic - Diastolic (standard clinical formula)
+MAP              — Mean Arterial Pressure (standard clinical formula)
+Low_SPO2_Flag    — SPO2 < 95 (standard low-oxygen threshold)
+Fever_Flag       — Body Temperature > 100.4°F (standard fever threshold)
+Symptom_Count    — sum of Sweating and Shivering flags
+```
+
+### Model 2 results
+
+Cross-validation (train only, GradientBoosting, imbalance-corrected via sample weighting):
+
+```text
+Balanced Accuracy: 0.9728
+Recall:            0.9969
+Precision:         0.9990
+PR-AUC:            0.9999890
+```
+
+Final one-shot test evaluation:
+
+```text
+Balanced Accuracy: 0.9902
+              precision  recall  f1-score  support
+Non-Diabetic     0.88     0.98     0.93      59
+Diabetic         1.00     1.00     1.00    2986
+```
+
+### Model 1 vs. Model 2
+
+| Metric | Model 1 (with glucose) | Model 2 (without glucose) |
+|---|---|---|
+| CV Balanced Accuracy | 0.9847 | 0.9728 |
+| Final Test Balanced Accuracy | 0.9998 | 0.9902 |
+
+### What this shows
+
+Removing the direct glucose reading costs only about **1–2 points of balanced accuracy**,
+not a collapse in performance. That's the key finding: the vitals and symptoms alone carry
+real, substantial signal about diabetes status — they aren't just noise sitting around one
+dominant feature. This makes Model 2 a legitimate, honestly-tested answer to a more realistic
+question than Model 1 answers: *"can this be screened for before a lab test, using signals
+a nurse can check in five minutes?"*
+
+### Model 2 Persistence
+
+The Model 2 pipeline was saved separately from Model 1, so both remain available for
+comparison and reuse:
+
+```text
+diabetes_non_diabetes_pipeline_2.pkl
+```
+
 ## Model Persistence
 
 The final trained pipeline was saved as:
